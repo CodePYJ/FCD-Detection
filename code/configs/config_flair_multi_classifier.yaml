@@ -1,0 +1,58 @@
+trainer:
+  target: modules.Trainer_classifier.Trainer
+  params:
+    epoch: 10
+    save_path: ./results/multi_classifier
+    log_interval: 20
+    save_interval: 50
+    model_name: flair_classifier
+    lr: 1e-5
+    use_validation: True
+    val_interval: 5
+    device: cuda:5
+
+tester:
+  target: modules.Tester.Tester
+  params:
+    model_path: ./results/model_flair_cfg/model_flair_cond_cfg_99.pt
+    sample_path: ./results/test_flair_sample
+    device: cuda:6
+
+model:
+  target: models.classifier.classifier.Classifier
+  params:
+    timesteps: 1000
+    linear_start: 0.0015
+    linear_end: 0.0155
+    image_size: 256
+    in_channels: 1
+    out_channels: 9
+    model_channels: 32
+    attention_resolutions: [32,16,8]   # 32, 16, 8, 4
+    num_res_blocks: 4
+    channel_mult: [ 1,1,2,2,4,4 ]  # 32, 16, 8, 4, 2
+    num_heads: 1
+    num_head_channels: 64
+    use_scale_shift_norm: True
+    resblock_updown: True
+    pool: attention
+
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 12
+    shuffle: False
+    train:
+      target: data.MultiFCDDataset.FCDDataset
+      params:
+        size: 256
+        path: /data2/wangchangmiao/pyj/datasets/opmd_png/train
+        use_cond: False
+        tsv_path: /data2/wangchangmiao/pyj/code/mDiffusion2/data/info.tsv
+    test:
+      target: data.MultiFCDDataset.FCDDataset
+      params:
+        size: 256
+        path: /data2/wangchangmiao/pyj/datasets/opmd_png/test
+        use_cond: False
+        tsv_path: /data2/wangchangmiao/pyj/code/mDiffusion2/data/info.tsv

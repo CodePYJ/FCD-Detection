@@ -1,0 +1,94 @@
+trainer:
+  target: modules.Trainer.Trainer
+  params:
+    epoch: 100
+    save_path: ./results/model_t1_cond_multi_class
+    log_interval: 40
+    save_interval: 50
+    model_name: model_t1_cond
+    lr: 5.0e-5
+    device: cuda:7
+
+tester:
+  target: modules.Tester.Tester
+  params:
+    model_path: /data2/wangchangmiao/pyj/code/mDiffusion2/results/model_t1_cond_multi_class/model_t1_cond_99.pt
+    sample_path: ./results/test_cg_t1_multi_class_all
+    device: cuda:7
+    noise_level: 100
+    infer_step: 1000
+    th: 0.4
+    eta: 0.
+    guide_w: 5
+
+model:
+  # base_learning_rate: 5.0e-5   # set to target_lr by starting main.py with '--scale_lr False'
+  target: models.diffusion.ddpm2.DDPM
+  params:
+    linear_start: 0.0015
+    linear_end: 0.0155
+    timesteps: 1000
+    image_size: 256
+    channels: 2
+    log_image_epoch: 10
+    log_path: ./log_flair_cond_cfg
+    condition_type: t1
+    guidance: cg
+    drop_prob: 0.3
+    use_ddim: True
+
+    unet_config:
+      target: models.unet.openaiunet.UNetModel
+      params:
+        image_size: 256
+        in_channels: 2
+        out_channels: 1 # use_condition=1
+        model_channels: 96
+        attention_resolutions: [ 16,8 ]   # 32, 16, 8, 4
+        num_res_blocks: 2
+        channel_mult: [ 1,1,2,2,4,4 ]  # 32, 16, 8, 4, 2
+        num_heads: 8
+        use_scale_shift_norm: True
+        resblock_updown: True
+        num_classes: 9
+
+    classifier_config:
+      target: models.classifier.classifier.Classifier
+      params:
+        ckpt_path: /data2/wangchangmiao/pyj/code/mDiffusion2/results/multi_classifier/flair_classifier_220_1.767579698562622.pt
+        timesteps: 1000
+        linear_start: 0.0015
+        linear_end: 0.0155
+        image_size: 256
+        in_channels: 1
+        out_channels: 9
+        model_channels: 32
+        attention_resolutions: [32,16,8]   # 32, 16, 8, 4
+        num_res_blocks: 4
+        channel_mult: [ 1,1,2,2,4,4 ]  # 32, 16, 8, 4, 2
+        num_heads: 1
+        num_head_channels: 64
+        use_scale_shift_norm: True
+        resblock_updown: True
+        pool: attention
+
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 12
+    shuffle: False
+    train:
+      target: data.MultiFCDDataset.FCDDataset
+      params:
+        size: 256
+        path: /data2/wangchangmiao/pyj/datasets/opmd_png/train
+        use_cond: True
+        tsv_path: /data2/wangchangmiao/pyj/code/mDiffusion2/data/info.tsv
+
+    test:
+      target: data.MultiFCDDataset.FCDDataset
+      params:
+        size: 256
+        path: /data2/wangchangmiao/pyj/datasets/opmd_png/test
+        use_cond: True
+        tsv_path: /data2/wangchangmiao/pyj/code/mDiffusion2/data/info.tsv

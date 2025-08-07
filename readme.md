@@ -7,13 +7,13 @@ Focal cortical dysplasia (FCD) is a developmental disorder frequently linked to 
 ## Dataset
 This article uses an openly open dataset (UHB dataset) provided by the Department of Epilepsy at the University Hospital Bonn. The dataset published at the University Hospital of Bonn collected 85 patients hospitalized between 2006 and 2021 with a confirmed diagnosis of FCD II and included 85 healthy controls, each with two MRI sequences, T1 and FLAIR, and their clinical information.
 ### Download
-[An open presurgery MRI dataset of people with epilepsy and focal cortical dysplasia type II](https://openneuro.org/datasets/ds004199/versions/1.0.5)
+[An open presurgery MRI dataset of people with epilepsy and focal cortical dysplasia type II.](https://openneuro.org/datasets/ds004199/versions/1.0.5)
 
 ### Preprocess
 ![](./resource/preprocess.png)
 1. Resampling and redirection.
-2. Use HD-BET for deboning.
-3. Use sri24_spm8 registration.
+2. Use [HD-BET](https://github.com/MIC-DKFZ/HD-BET) for deboning.
+3. Use [sri24_spm8](https://www.nitrc.org/projects/sri24/) registration.
 4. Slice.
 
 ## Method
@@ -23,7 +23,7 @@ t = torch.randint(0, self.num_timesteps, (x_start.shape[0],), device=self.device
 noise = torch.randn_like(x_start, device=self.device)
 x_noisy = self.noise_scheduler.add_noise(x_start, noise, t).to(self.device)
 
-logits = self(x_noisy, t)
+logits = self(x_noisy, t，cond)
 loss = F.cross_entropy(logits, is_fcd, reduction="none").mean()
 ```
 
@@ -35,7 +35,7 @@ x_noisy = self.noise_scheduler.add_noise(x_start, noise, t).to(self.device)
 
 x_noisy = torch.cat((x_noisy, cond_img), dim=1)
 
-model_out = self.model(x_noisy, t, y=label, context_mask=context_mask)
+model_out = self.model(x_noisy, t, y=label)
 target = noise
 pred = model_out
 loss = torch.nn.functional.mse_loss(target, pred, reduction='none')
@@ -54,12 +54,27 @@ label = torch.zeros_like(label[:N]).to(self.device)
 reverse_timesteps = list(sample_timesteps)[::-1]
 with torch.no_grad():
     for t in reverse_timesteps[1:]:
-        model_out = self.model(model_input, t_batch, y=y, context_mask=context_mask)
+        model_out = self.model(model_input, t_batch, y=y)
         x_t = self.inverse_scheduler.step(model_out, t, x_t, False)[0]
     for t in sample_timesteps:
-        model_out = self.model(model_input, t_batch, y=y, context_mask=context_mask)
+        model_out = self.model(model_input, t_batch, y=y)
         x_t = self.noise_scheduler.step(model_out, t, x_t, eta=self.eta, use_clipped_model_output=True).prev_sample
         x_t += self.cond_fn(x_t, t_batch, y, self.guide_w)
 ```
+Use config_t1_cond_multiclass_cg.yaml files for inference.
+```
+python main.py --base ./configs/config_t1_cond_multiclass_cg.yaml --test True
+```
+[Download our models.]()
+
 ## Experiment
 ![](./resource/compare2.png)
+
+### Evaluation Metrics
+We evaluate our model's performance using recall (denoted as R@k), which measures the detection of false positives per image at the pixel level, alongside Dice metrics. A lesion is considered recalled if there is at least one predicted point within 10 pixels of the lesion, aligning with the 5th percentile of lesion radius across both datasets. The Dice metric is computed by binarizing the anomaly map, and the threshold is chosen by picking the value that maximizes the Dice metric based on the range of anomalous pixels. Measurements were conducted on slices sized 256 × 256 pixels.
+
+### Comparative Study
+![](./resource/metrics.png)
+
+### Ablation Study
+![](./resource/ablation.png)
